@@ -1,0 +1,53 @@
+# Byte-compiled
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Distribution
+build/
+dist/
+*.egg-info/
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python tools
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.log
+
+# Model artifacts (large binary files)
+*.zip
+*.pkl
+*.npz
+*.ckpt
+*.pth
+*.onnx
+
+# Model directories (keep structure, ignore weights)
+models/*/
+checkpoints/*/
+
+# Results (generated figures, logs)
+results/tensorboard/
+results/paper_figures/
+
+# Kronos submodule
+../Kronos/

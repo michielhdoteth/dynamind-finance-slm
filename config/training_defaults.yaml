@@ -1,0 +1,109 @@
+# Central Training Configuration for Financial Trading RL Gym
+# All training scripts should load from this file to ensure consistency.
+
+model:
+  name: "Qwen/Qwen2-0.5B"
+  hidden_dim: 1024
+  features_dim: 256
+  freeze_base: true
+  trainable_layers: 2  # Number of last transformer layers to unfreeze
+
+ppo:
+  learning_rate: 0.0003
+  batch_size: 64
+  n_steps: 2048
+  n_epochs: 10
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.2
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  kl_target: 0.015
+  use_sde: false
+  sde_sample_freq: -1
+
+environment:
+  env_type: "single_asset"
+  max_steps: 252
+  num_assets: 1
+  commission_rate: 0.001
+  slippage_rate: 0.0005
+  short_fee_rate: 0.0003
+  max_leverage: 2.0
+  max_position_size: 0.3
+  max_drawdown: 0.15
+  var_limit: 0.05
+
+training:
+  total_timesteps: 200000
+  n_seeds: 5
+  eval_freq: 10000
+  save_freq: 25000
+  log_interval: 100
+  eval_episodes: 10
+  deterministic_eval: true
+
+data:
+  symbols: ["AAPL", "MSFT", "GOOGL", "AMZN"]
+  start_date: "2020-01-01"
+  end_date: "2023-12-31"
+  train_split: 0.7
+  val_split: 0.15
+  test_split: 0.15
+  frequency: "1d"
+  lookback_window: 60
+
+logging:
+  log_dir: "./logs"
+  checkpoint_dir: "./checkpoints"
+  tensorboard: true
+  wandb: false
+  wandb_project: "financial-trading-rl"
+  wandb_entity: ""
+
+# Model variants for sweep
+model_variants:
+  - name: "Qwen/Qwen2-0.5B"
+    params: "494M"
+    description: "Base 0.5B model"
+  - name: "Qwen/Qwen2-1.5B"
+    params: "1.54B"
+    description: "1.5B model for comparison"
+  - name: "Qwen/Qwen2-0.5B-Instruct"
+    params: "494M"
+    description: "Chat-tuned variant"
+
+# Reward shaping
+reward:
+  alpha: 1.0  # Return weight
+  beta: 0.5   # Risk weight
+  gamma: 0.1  # Cost weight
+  use_cvar: true
+  cvar_confidence: 0.95
+  cvar_window: 100
+
+# Curriculum learning stages
+curriculum:
+  enabled: false
+  stages:
+    - name: "beginner"
+      max_steps: 25000
+      volatility: 0.01
+      commission_rate: 0.0
+      num_assets: 1
+    - name: "intermediate"
+      max_steps: 75000
+      volatility: 0.02
+      commission_rate: 0.0005
+      num_assets: 1
+    - name: "advanced"
+      max_steps: 150000
+      volatility: 0.03
+      commission_rate: 0.001
+      num_assets: 2
+    - name: "expert"
+      max_steps: 200000
+      volatility: 0.04
+      commission_rate: 0.001
+      num_assets: 3

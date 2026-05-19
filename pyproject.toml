@@ -1,0 +1,184 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "financial-trading-rl-gym"
+dynamic = ["version"]
+description = "Professional Reinforcement Learning Financial Trading Gym Environment"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Michiel Horstman", email = "michiel.horstman@4mlabs.io"},
+]
+maintainers = [
+    {name = "Michiel Horstman", email = "michiel.horstman@4mlabs.io"},
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Office/Business :: Financial",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "gymnasium>=0.26.0",
+    "numpy>=1.20.0",
+    "pandas>=1.3.0",
+    "matplotlib>=3.4.0",
+    "scipy>=1.7.0",
+    "yfinance>=0.1.70",
+    "requests>=2.25.0",
+    "stable-baselines3>=1.6.0",
+    "torch>=1.12.0",
+    "transformers>=4.20.0",
+    "protobuf>=3.20.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "pytest-cov>=2.0",
+    "black>=21.0",
+    "flake8>=3.9",
+    "jupyter>=1.0",
+    "isort>=5.0",
+    "mypy>=0.950",
+    "pre-commit>=2.15.0",
+    "types-requests>=2.25",
+    "types-PyYAML>=6.0",
+]
+data = [
+    "alpha_vantage>=2.3.0",
+    "sqlalchemy>=1.4.0",
+    "psycopg2-binary>=2.9.0",
+]
+examples = [
+    "jupyter>=1.0",
+    "seaborn>=0.11.0",
+    "plotly>=5.0",
+    "tokenizers>=0.13.0",
+    "torchvision>=0.15.0",
+    "networkx>=2.6",
+    "bokeh>=2.4",
+    "dash>=2.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/4mlabs/financial-trading-rl-gym"
+Repository = "https://github.com/4mlabs/financial-trading-rl-gym"
+Documentation = "https://github.com/4mlabs/financial-trading-rl-gym/docs"
+"Bug Tracker" = "https://github.com/4mlabs/financial-trading-rl-gym/issues"
+
+[project.scripts]
+financial_trading_gym = "financial_trading_gym.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["*"]
+namespaces = false
+
+[tool.setuptools_scm]
+write_to = "financial_trading_gym/_version.py"
+
+[tool.black]
+line-length = 88
+target-version = ['py38', 'py39', 'py310', 'py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | models
+  | logs
+  | results
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["financial_trading_gym"]
+known_third_party = ["gymnasium", "numpy", "pandas", "torch", "transformers", "stable_baselines3"]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "gymnasium.*",
+    "stable_baselines3.*",
+    "transformers.*",
+    "yfinance.*",
+    "scipy.*",
+    "sklearn.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q --strict-markers --strict-config"
+testpaths = [
+    "tests/unit",
+    "tests/integration",
+    "tests/models",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+[tool.coverage.run]
+source = ["financial_trading_gym"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "setup.py",
+    "*/venv/*",
+    "*/env/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]

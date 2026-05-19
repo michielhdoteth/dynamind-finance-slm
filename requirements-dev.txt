@@ -1,0 +1,22 @@
+# Development dependencies
+pytest>=7.0
+pytest-cov>=2.0
+black>=22.0
+flake8>=3.9
+isort>=5.0
+mypy>=0.950
+pre-commit>=2.15.0
+
+# Jupyter for examples
+jupyter>=1.0
+notebook>=6.4
+ipywidgets>=7.6
+
+# Documentation
+sphinx>=4.5
+sphinx-rtd-theme>=1.0
+sphinx-autodoc-typehints>=1.12
+
+# Type checking and linting
+types-requests>=2.25
+types-PyYAML>=6.0

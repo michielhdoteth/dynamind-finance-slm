@@ -1,0 +1,10 @@
+{
+  "validation_score": 3,
+  "max_score": 4,
+  "validation_rate": 0.75,
+  "decomposition_valid": false,
+  "kl_adherence_rate": 0.7066666666666667,
+  "advantage_quality": "good",
+  "clip_stability_rate": 0.7933333333333333,
+  "meta_learning_consolidation": true
+}

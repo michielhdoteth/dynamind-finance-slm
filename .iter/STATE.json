@@ -1,0 +1,31 @@
+{
+  "version": "1.0",
+  "project": "Financial Trading RL Gym - Post-Training Pipeline",
+  "current_phase": "3",
+  "tasks": [
+    { "id": "TASK-001", "name": "Fix package imports", "phase": 0, "status": "completed", "blockedBy": [] },
+    { "id": "TASK-002", "name": "Organize tests", "phase": 0, "status": "completed", "blockedBy": [] },
+    { "id": "TASK-003", "name": "Clean up scripts", "phase": 0, "status": "completed", "blockedBy": [] },
+    { "id": "TASK-004", "name": "Model catalog", "phase": 0, "status": "completed", "blockedBy": [] },
+    { "id": "TASK-005", "name": "Central config", "phase": 0, "status": "completed", "blockedBy": [] },
+    { "id": "TASK-101", "name": "Model size sweep", "phase": 1, "status": "completed", "blockedBy": [] },
+    { "id": "TASK-102", "name": "Extended training", "phase": 1, "status": "completed", "blockedBy": [] },
+    { "id": "TASK-103", "name": "Hyperparameter optimization", "phase": 1, "status": "completed", "blockedBy": [] },
+    { "id": "TASK-104", "name": "Curriculum learning", "phase": 1, "status": "completed", "blockedBy": [] },
+    { "id": "TASK-105", "name": "Multi-asset training", "phase": 1, "status": "completed", "blockedBy": [] },
+    { "id": "TASK-201", "name": "Financial pretraining", "phase": 2, "status": "completed", "blockedBy": [] },
+    { "id": "TASK-202", "name": "SFT on expert trajectories", "phase": 2, "status": "completed", "blockedBy": [] },
+    { "id": "TASK-203", "name": "Reward model training", "phase": 2, "status": "completed", "blockedBy": [] },
+    { "id": "TASK-204", "name": "RLHF alignment", "phase": 2, "status": "completed", "blockedBy": [] },
+    { "id": "TASK-205", "name": "Multi-task agent", "phase": 2, "status": "completed", "blockedBy": [] },
+    { "id": "TASK-301", "name": "Ablation study framework", "phase": 3, "status": "completed", "blockedBy": [] },
+    { "id": "TASK-302", "name": "Paper metrics generation", "phase": 3, "status": "completed", "blockedBy": [] },
+    { "id": "TASK-303", "name": "Model export pipeline", "phase": 3, "status": "completed", "blockedBy": [] }
+  ],
+  "progress": {
+    "phase_0": 1.0,
+    "phase_1": 1.0,
+    "phase_2": 1.0,
+    "phase_3": 1.0
+  }
+}
