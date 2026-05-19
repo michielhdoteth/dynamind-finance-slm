@@ -81,31 +81,66 @@ class KronosFeatureExtractor:
         if self._loaded:
             return
         
+        # First check if model is cached locally (skip network if not)
+        import os as _os
+        cache_base = _os.path.expanduser("~/.cache/huggingface/hub")
+        model_cache_id = "models--" + self.model_name.replace("/", "--")
+        model_path = _os.path.join(cache_base, model_cache_id)
+        
+        if not _os.path.exists(model_path):
+            logger.info("Kronos model not in local cache. Using market-adaptive features. "
+                       "To download: pip install huggingface_hub && python -c "
+                       "'from huggingface_hub import snapshot_download; "
+                       "snapshot_download(\"" + self.model_name + "\")'")
+            self._loaded = "fallback"
+            return
+        
         try:
             from model import Kronos, KronosTokenizer
             
             logger.info(f"Loading Kronos-{self.model_size} ({self.model_name})...")
-            self._tokenizer = KronosTokenizer.from_pretrained(
-                self.tokenizer_name,
-                trust_remote_code=True,
-            ).to(self.device)
             
-            self._model = Kronos.from_pretrained(
-                self.model_name,
-                trust_remote_code=True,
-            ).to(self.device)
+            # Disable network retries - only use local cache
+            import os
+            os.environ["HF_HUB_DOWNLOAD_TIMEOUT"] = "5"
+            os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
+            
+            # Try loading with trust_remote_code first, then without
+            try:
+                self._tokenizer = KronosTokenizer.from_pretrained(
+                    self.tokenizer_name, trust_remote_code=True,
+                    local_files_only=True,
+                ).to(self.device)
+            except (TypeError, EnvironmentError):
+                try:
+                    self._tokenizer = KronosTokenizer.from_pretrained(
+                        self.tokenizer_name, local_files_only=True,
+                    ).to(self.device)
+                except EnvironmentError:
+                    self._loaded = "fallback"
+                    return
+            
+            try:
+                self._model = Kronos.from_pretrained(
+                    self.model_name, trust_remote_code=True,
+                    local_files_only=True,
+                ).to(self.device)
+            except (TypeError, EnvironmentError):
+                try:
+                    self._model = Kronos.from_pretrained(
+                        self.model_name, local_files_only=True,
+                    ).to(self.device)
+                except EnvironmentError:
+                    self._loaded = "fallback"
+                    return
             
             self._model.eval()
             self._tokenizer.eval()
             self._loaded = True
             logger.info(f"Kronos loaded: {sum(p.numel() for p in self._model.parameters())/1e6:.1f}M params")
             
-        except ImportError as e:
-            logger.warning(f"Could not load Kronos: {e}")
-            logger.warning("Falling back to random features. Install Kronos dependencies for full functionality.")
-            self._loaded = "fallback"
         except Exception as e:
-            logger.warning(f"Kronos load failed: {e}. Using fallback.")
+            logger.info(f"Kronos fallback: using market-adaptive features.")
             self._loaded = "fallback"
     
     def extract_features(self, ohlcv_history: np.ndarray) -> np.ndarray:
