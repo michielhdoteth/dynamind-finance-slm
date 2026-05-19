@@ -404,9 +404,11 @@ class SingleAssetTradingEnv(FinancialTradingBase):
             }
 
         elif action == 1:  # Buy
-            # Calculate target position (fully invested if possible)
-            target_position_value = min(max_position_value, self.portfolio_value)
-            target_shares = int(target_position_value / current_price)
+            # Calculate target position (account for transaction costs)
+            commission = getattr(self, 'transaction_costs', TransactionCosts()).commission_rate
+            max_affordable = self.cash_balance / (1 + commission)
+            target_position_value = min(max_position_value, self.portfolio_value, max_affordable)
+            target_shares = max(0, int(target_position_value / current_price))
             shares_to_buy = target_shares - current_position
 
             if shares_to_buy <= 0:
@@ -438,6 +440,24 @@ class SingleAssetTradingEnv(FinancialTradingBase):
                     "new_position": self.positions[self.asset.symbol],
                 }
             else:
+                # Try with reduced position
+                affordable_value = self.cash_balance / (1 + commission)
+                if affordable_value > current_price:
+                    reduced_shares = max(0, int(affordable_value / current_price) - current_position)
+                    if reduced_shares > 0:
+                        trade_value = reduced_shares * current_price
+                        transaction_cost = self._calculate_transaction_costs(trade_value)
+                        self.positions[self.asset.symbol] += reduced_shares
+                        self.cash_balance -= trade_value + transaction_cost
+                        self.realized_pnl -= transaction_cost
+                        return {
+                            "action": "buy",
+                            "executed": True,
+                            "quantity": reduced_shares,
+                            "price": current_price,
+                            "cost": transaction_cost,
+                            "new_position": self.positions[self.asset.symbol],
+                        }
                 return {
                     "action": "buy",
                     "executed": False,
@@ -489,6 +509,11 @@ class SingleAssetTradingEnv(FinancialTradingBase):
         current_price = self.current_prices[self.asset.symbol]
         max_position_value = self.portfolio_value * self.config.leverage_limit
         target_position_value = action * max_position_value
+        
+        # Adjust for transaction costs: target should leave room for commission
+        commission_rate = getattr(self, 'transaction_costs', TransactionCosts()).commission_rate
+        target_position_value *= (1 - commission_rate)
+        
         target_shares = int(target_position_value / current_price)
         shares_to_trade = target_shares - self.positions[self.asset.symbol]
 
@@ -517,8 +542,24 @@ class SingleAssetTradingEnv(FinancialTradingBase):
                 self.realized_pnl -= transaction_cost
                 executed = True
             else:
-                executed = False
-                shares_to_trade = 0
+                # Try with reduced position if cash is tight
+                affordable_value = self.cash_balance - transaction_cost
+                if affordable_value > current_price:
+                    reduced_shares = int(affordable_value / current_price)
+                    if reduced_shares > self.positions[self.asset.symbol] + 1:
+                        shares_to_trade = reduced_shares - self.positions[self.asset.symbol]
+                        trade_value = shares_to_trade * current_price
+                        transaction_cost = self._calculate_transaction_costs(trade_value)
+                        self.positions[self.asset.symbol] += shares_to_trade
+                        self.cash_balance -= trade_value + transaction_cost
+                        self.realized_pnl -= transaction_cost
+                        executed = True
+                    else:
+                        executed = False
+                        shares_to_trade = 0
+                else:
+                    executed = False
+                    shares_to_trade = 0
         else:  # Selling
             if abs(shares_to_trade) <= abs(self.positions[self.asset.symbol]):
                 self.positions[self.asset.symbol] += shares_to_trade
@@ -541,27 +582,28 @@ class SingleAssetTradingEnv(FinancialTradingBase):
 
     def _calculate_reward(self, execution_details: Dict[str, Any]) -> float:
         """Calculate reward based on execution results and portfolio performance"""
-        # Base reward: portfolio return
-        if len(self.portfolio_history) > 1:
+        # Base reward: 1-step portfolio return (use last history entry, not second-to-last)
+        if len(self.portfolio_history) >= 1:
             portfolio_return = (
-                self.portfolio_value - self.portfolio_history[-2]
-            ) / self.portfolio_history[-2]
+                self.portfolio_value - self.portfolio_history[-1]
+            ) / max(self.portfolio_history[-1], 1e-8)
         else:
             portfolio_return = 0
 
         # Transaction cost penalty
         cost_penalty = -execution_details["cost"] / self.portfolio_value
 
-        # Risk-adjusted component
-        if len(self.portfolio_history) > 30:
-            returns = (
-                np.diff(self.portfolio_history[-30:]) / self.portfolio_history[-30:-1]
+        # Risk-adjusted component - moderate penalty that allows positive returns
+        if len(self.portfolio_history) > 10:
+            recent_rets = (
+                np.diff(self.portfolio_history[-20:]) / self.portfolio_history[-20:-1]
             )
-            volatility_penalty = -0.5 * np.std(returns)  # Penalize high volatility
+            vol = np.std(recent_rets) if len(recent_rets) > 0 else 0
+            volatility_penalty = -0.05 * vol  # Reduced from -0.5 to allow net positive rewards
         else:
             volatility_penalty = 0
 
-        # Position management bonus/penalty
+        # Position management - penalize excess leverage, not holding positions
         current_position_ratio = (
             abs(
                 self.positions[self.asset.symbol]
@@ -569,9 +611,10 @@ class SingleAssetTradingEnv(FinancialTradingBase):
             )
             / self.portfolio_value
         )
-        position_penalty = -0.1 * max(
-            0, current_position_ratio - 0.8
-        )  # Penalize over-concentration
+        # Penalize only positions exceeding available capital (leveraged positions)
+        position_penalty = -0.02 * max(
+            0, current_position_ratio - 1.0
+        )  # Penalize only leverage > 1.0
 
         # Combine reward components
         total_reward = (

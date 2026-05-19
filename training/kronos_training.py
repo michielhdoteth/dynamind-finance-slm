@@ -133,7 +133,7 @@ def make_env(config: KronosTrainingConfig, symbol: str = "AAPL", kronos_extracto
         env = SingleAssetTradingEnv(
             asset=asset,
             max_episode_length=config.max_steps,
-            action_space_type="continuous",
+            action_space_type="discrete",
         )
         wrapped = KronosObservationWrapper(
             env,

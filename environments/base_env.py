@@ -170,7 +170,7 @@ class FinancialTradingBase(gym.Env, ABC):
         self.positions = {asset.symbol: 0.0 for asset in self.assets}
         self.unrealized_pnl = 0.0
         self.realized_pnl = 0.0
-        self.portfolio_history = []
+        self.portfolio_history = [self.portfolio_value]
         self.episode_returns = []
         self.risk_metrics_history = []
 
