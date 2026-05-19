@@ -26,7 +26,7 @@ import torch
 import torch.nn as nn
 from typing import Optional, Dict, Any, Tuple, List
 from gymnasium import spaces
-from gymnasium.core import Env
+from gymnasium.core import Env as GymEnv
 
 # Add Kronos to path
 _KRONOS_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", "Kronos")
@@ -208,10 +208,13 @@ class KronosFeatureExtractor:
         else:
             features = features[:self.feature_dim]
         
+        # Guard against NaN/Inf from short history
+        features = np.nan_to_num(features, nan=0.0, posinf=1.0, neginf=-1.0)
+        
         return features
 
 
-class KronosObservationWrapper:
+class KronosObservationWrapper(GymEnv):
     """
     Wraps an RL environment to add Kronos market structure features to observations.
     
@@ -219,11 +222,17 @@ class KronosObservationWrapper:
         base_env = SingleAssetTradingEnv(asset=asset)
         env = KronosObservationWrapper(base_env, kronos_extractor)
         obs, info = env.reset()  # obs includes Kronos features
+    
+    Note: This wrapper is NOT a Gymnasium wrapper by design - it handles
+    SB3 compatibility by exposing the combined observation space directly.
+    Use create_kronos_env_fn() for SB3 training compatibility.
     """
+    
+    metadata = {"render_modes": []}
     
     def __init__(
         self,
-        env: Env,
+        env: GymEnv,
         kronos_extractor: KronosFeatureExtractor = None,
         ohlcv_history_len: int = 60,
         feature_dim: int = 64,
@@ -232,13 +241,16 @@ class KronosObservationWrapper:
         self.kronos = kronos_extractor or KronosFeatureExtractor(feature_dim=feature_dim)
         self.ohlcv_history_len = ohlcv_history_len
         self.feature_dim = feature_dim
+        self.kronos_feature_dim = feature_dim
         
         # History buffer for OHLCV data
         self.ohlcv_history = []
         
         # Update observation space
-        original_dim = self._get_obs_dim(env.observation_space)
-        self.kronos_feature_dim = feature_dim
+        obs_space = env.observation_space
+        if obs_space is None:
+            obs_space = spaces.Box(low=-np.inf, high=np.inf, shape=(49,), dtype=np.float32)
+        original_dim = int(np.prod(obs_space.shape)) if isinstance(obs_space, spaces.Box) else 49
         
         # Create new combined observation space
         total_dim = original_dim + self.kronos_feature_dim
@@ -247,38 +259,14 @@ class KronosObservationWrapper:
         )
         self.action_space = env.action_space
     
-    def _get_obs_dim(self, space) -> int:
-        """Get total dimension of observation space."""
-        if isinstance(space, spaces.Box):
-            return int(np.prod(space.shape))
-        elif isinstance(space, spaces.Dict):
-            return sum(int(np.prod(s.shape)) for s in space.spaces.values())
-        return 64  # fallback
-    
-    def _get_ohlcv_from_env(self) -> np.ndarray:
-        """Extract OHLCV data from environment state if available."""
-        # Try to get price history from the environment
-        if hasattr(self.env, 'price_history') and self.env.price_history is not None:
-            return np.array(self.env.price_history)
-        if hasattr(self.env, 'asset') and hasattr(self.env, 'current_step'):
-            # Generate synthetic OHLCV from env state
-            if hasattr(self.env, '_price') and self.env._price is not None:
-                return np.array(self.env._price)
-        return None
-    
-    def reset(self, **kwargs):
+    def reset(self, seed=None, options=None):
         """Reset environment and return augmented observation."""
-        obs, info = self.env.reset(**kwargs)
-        
-        # Try to get OHLCV data from environment
+        obs, info = self.env.reset(seed=seed)
         ohlcv = self._get_ohlcv_from_env()
         if ohlcv is not None and len(ohlcv) > 0:
             self.ohlcv_history = list(ohlcv)
-        
         kronos_features = self._get_kronos_features()
-        aug_obs = self._augment_observation(obs, kronos_features)
-        
-        return aug_obs, info
+        return self._augment_observation(obs, kronos_features), info
     
     def step(self, action):
         """Take a step and return augmented observation."""
@@ -289,15 +277,40 @@ class KronosObservationWrapper:
         if ohlcv is not None and len(ohlcv) > 0:
             self.ohlcv_history = list(ohlcv)
         elif isinstance(obs, np.ndarray) and len(obs) >= 5:
-            # Store obs slice as pseudo-OHLCV
             self.ohlcv_history.append(obs[:5])
             if len(self.ohlcv_history) > self.ohlcv_history_len:
                 self.ohlcv_history = self.ohlcv_history[-self.ohlcv_history_len:]
         
         kronos_features = self._get_kronos_features()
-        aug_obs = self._augment_observation(obs, kronos_features)
-        
-        return aug_obs, reward, terminated, truncated, info
+        return self._augment_observation(obs, kronos_features), reward, terminated, truncated, info
+    
+    def render(self):
+        """Delegate render to wrapped env."""
+        return self.env.render()
+    
+    def close(self):
+        """Delegate close to wrapped env."""
+        return self.env.close()
+    
+    def _get_ohlcv_from_env(self) -> np.ndarray:
+        """Extract OHLCV data from environment state if available."""
+        if hasattr(self.env, 'price_history') and self.env.price_history is not None:
+            return np.array(self.env.price_history)
+        if hasattr(self.env, 'asset') and hasattr(self.env, 'current_step'):
+            if hasattr(self.env, '_price') and self.env._price is not None:
+                return np.array(self.env._price)
+        return None
+    
+    def _get_obs_dim(self, space) -> int:
+        """Extract OHLCV data from environment state if available."""
+        # Try to get price history from the environment
+        if hasattr(self.env, 'price_history') and self.env.price_history is not None:
+            return np.array(self.env.price_history)
+        if hasattr(self.env, 'asset') and hasattr(self.env, 'current_step'):
+            # Generate synthetic OHLCV from env state
+            if hasattr(self.env, '_price') and self.env._price is not None:
+                return np.array(self.env._price)
+        return None
     
     def _get_kronos_features(self) -> np.ndarray:
         """Get Kronos features from current OHLCV history."""
@@ -309,29 +322,23 @@ class KronosObservationWrapper:
     def _augment_observation(self, obs, kronos_features) -> np.ndarray:
         """Concatenate standard observation with Kronos features."""
         if isinstance(obs, np.ndarray):
+            kronos_features = np.nan_to_num(kronos_features, nan=0.0, posinf=1.0, neginf=-1.0)
+            obs = np.nan_to_num(obs, nan=0.0, posinf=1.0, neginf=-1.0)
             return np.concatenate([obs, kronos_features]).astype(np.float32)
         elif isinstance(obs, dict):
             obs['kronos_features'] = kronos_features
             return obs
         return obs
     
-    def __getattr__(self, name):
-        """Delegate unknown attribute access to the wrapped environment."""
-        if name in ('env', 'kronos', 'ohlcv_history_len', 'feature_dim', 'observation_space', 
-                     'action_space', 'ohlcv_history'):
-            return object.__getattribute__(self, name)
-        return getattr(self.env, name)
-
-
 # Direct integration helper for PPO training
-def create_kronos_env(
+def create_kronos_env_fn(
     env_class,
     kronos_size: str = "small",
     feature_dim: int = 64,
     **env_kwargs
 ):
     """
-    Create a Kronos-enhanced environment for PPO training.
+    Create a factory function for Kronos-enhanced environments.
     
     Args:
         env_class: The base environment class (SingleAssetTradingEnv, etc.)
@@ -340,10 +347,8 @@ def create_kronos_env(
         **env_kwargs: Arguments for the environment
         
     Returns:
-        KronosObservationWrapper around the environment
+        Factory function that creates KronosObservationWrapper environments
     """
-    from stable_baselines3.common.vec_env import DummyVecEnv
-    
     kronos_extractor = KronosFeatureExtractor(
         model_size=kronos_size,
         feature_dim=feature_dim,
@@ -353,7 +358,7 @@ def create_kronos_env(
         base_env = env_class(**env_kwargs)
         return KronosObservationWrapper(base_env, kronos_extractor)
     
-    return DummyVecEnv([make_env])
+    return make_env
 
 
 if __name__ == "__main__":

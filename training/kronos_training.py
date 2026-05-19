@@ -50,8 +50,6 @@ class KronosTrainingConfig:
     env_type: str = "single_asset"
     symbols: List[str] = field(default_factory=lambda: ["AAPL", "MSFT", "GOOGL", "AMZN"])
     max_steps: int = 252
-    commission_rate: float = 0.001
-    slippage_rate: float = 0.0005
     
     # Kronos
     kronos_size: str = "small"  # mini, small, base
@@ -131,18 +129,6 @@ def make_env(config: KronosTrainingConfig, symbol: str = "AAPL"):
         drift=0.0001,
     )
     
-    costs = TransactionCosts(
-        commission_rate=config.commission_rate,
-        slippage_rate=config.slippage_rate,
-    )
-    
-    constraints = RiskConstraints(
-        max_leverage=2.0,
-        max_position_size=0.3,
-        max_drawdown=0.15,
-        var_limit=0.05,
-    )
-    
     # Create Kronos feature extractor
     kronos = KronosFeatureExtractor(
         model_size=config.kronos_size,
@@ -152,9 +138,8 @@ def make_env(config: KronosTrainingConfig, symbol: str = "AAPL"):
     def _init():
         env = SingleAssetTradingEnv(
             asset=asset,
-            max_steps=config.max_steps,
-            commission_rate=config.commission_rate,
-            slippage_rate=config.slippage_rate,
+            max_episode_length=config.max_steps,
+            action_space_type="continuous",
         )
         wrapped = KronosObservationWrapper(
             env,
