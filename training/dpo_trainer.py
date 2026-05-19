@@ -476,7 +476,7 @@ class DPOTrainer:
 
         for obs, act in zip(observations, actions):
             obs_t = torch.FloatTensor(obs).unsqueeze(0).to(self.device)
-            act_t = torch.FloatTensor(act).unsqueeze(0).to(self.device)
+            act_t = torch.tensor(act, dtype=torch.long, device=self.device).unsqueeze(0)
             dist = self.policy.get_distribution(obs_t)
             log_prob = dist.log_prob(act_t)
             total_log_prob = total_log_prob + log_prob.sum()
@@ -501,7 +501,7 @@ class DPOTrainer:
         with torch.no_grad():
             for obs, act in zip(observations, actions):
                 obs_t = torch.FloatTensor(obs).unsqueeze(0).to(self.device)
-                act_t = torch.FloatTensor(act).unsqueeze(0).to(self.device)
+                act_t = torch.tensor(act, dtype=torch.long, device=self.device).unsqueeze(0)
                 dist = self.ref_policy.get_distribution(obs_t)
                 log_prob = dist.log_prob(act_t)
                 total_log_prob = total_log_prob + log_prob.sum()
@@ -703,7 +703,7 @@ class GRPOTrainer:
                 traj.observations, traj.actions, traj.log_probs
             ):
                 obs_t = torch.FloatTensor(obs).unsqueeze(0).to(self.device)
-                act_t = torch.FloatTensor(act).unsqueeze(0).to(self.device)
+                act_t = torch.tensor(act, dtype=torch.long, device=self.device).unsqueeze(0)
                 old_logp_t = torch.FloatTensor(old_logp_raw).to(self.device)
 
                 # Current policy log prob
