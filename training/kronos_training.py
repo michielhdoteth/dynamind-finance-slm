@@ -116,9 +116,9 @@ class KronosTrainingCallback(BaseCallback):
             pass
 
 
-def make_env(config: KronosTrainingConfig, symbol: str = "AAPL"):
+def make_env(config: KronosTrainingConfig, symbol: str = "AAPL", kronos_extractor=None):
     """Create a Kronos-enhanced environment factory."""
-    from environments.kronos_wrapper import KronosFeatureExtractor, KronosObservationWrapper
+    from environments.kronos_wrapper import KronosObservationWrapper
     
     asset = AssetConfig(
         symbol=symbol,
@@ -129,12 +129,6 @@ def make_env(config: KronosTrainingConfig, symbol: str = "AAPL"):
         drift=0.0001,
     )
     
-    # Create Kronos feature extractor
-    kronos = KronosFeatureExtractor(
-        model_size=config.kronos_size,
-        feature_dim=config.kronos_feature_dim,
-    )
-    
     def _init():
         env = SingleAssetTradingEnv(
             asset=asset,
@@ -143,7 +137,7 @@ def make_env(config: KronosTrainingConfig, symbol: str = "AAPL"):
         )
         wrapped = KronosObservationWrapper(
             env,
-            kronos_extractor=kronos,
+            kronos_extractor=kronos_extractor,
             ohlcv_history_len=config.kronos_lookback,
             feature_dim=config.kronos_feature_dim,
         )
@@ -159,18 +153,23 @@ def train_single(
 ) -> Dict:
     """Train a single Kronos-enhanced PPO agent."""
     
+    # Create single Kronos extractor (shared across env instances)
+    from environments.kronos_wrapper import KronosFeatureExtractor
+    kronos = KronosFeatureExtractor(
+        model_size=config.kronos_size,
+        feature_dim=config.kronos_feature_dim,
+    )
+    
     # Create environment
-    env = DummyVecEnv([make_env(config)])
+    env_fn = make_env(config, kronos_extractor=kronos)
+    env = DummyVecEnv([env_fn])
     
-    # Calculate policy kwargs - auto-detect observation size from Kronos wrapper
-    sample_env = make_env(config)()
-    obs_dim = sample_env.observation_space.shape[0]
-    
+    # Simple MLP policy (Kronos features are already in the observation)
     policy_kwargs = dict(
         net_arch=[dict(pi=[256, 128], vf=[256, 128])],
     )
     
-    # Create PPO model
+    print(f"  Creating PPO model (obs_dim={env.observation_space.shape[0]})...")
     model = PPO(
         "MlpPolicy",
         env,
@@ -185,7 +184,7 @@ def train_single(
         vf_coef=config.vf_coef,
         max_grad_norm=config.max_grad_norm,
         policy_kwargs=policy_kwargs,
-        verbose=0,
+        verbose=1,
         seed=seed,
         device="auto",
     )
@@ -198,14 +197,16 @@ def train_single(
         name_prefix=config.model_name,
     )
     
-    # Train
+    # Train with visible progress
     start = time.time()
+    print(f"  Training {config.total_timesteps} timesteps...")
     model.learn(
         total_timesteps=config.total_timesteps,
         callback=[callback, checkpoint_callback],
-        progress_bar=False,
+        progress_bar=True,
     )
     training_time = time.time() - start
+    print(f"  Training complete: {training_time:.1f}s")
     
     # Save final model
     os.makedirs(config.output_dir, exist_ok=True)
